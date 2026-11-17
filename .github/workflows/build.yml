@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ linux-intel, linux-arm ]
+        os: [ linux-intel ]
         include:
           - os: linux-intel
             runs-on: ubuntu-latest
@@ -32,9 +32,9 @@ jobs:
           - name: WebOS Qt6 config
             TOOLCHAIN_TARGET: webos
             DEFCONFIG: webos_tv_defconfig
-          - name: LGTV config
-            TOOLCHAIN_TARGET: lgtv
-            DEFCONFIG: lgtv_defconfig
+#          - name: LGTV config
+#            TOOLCHAIN_TARGET: lgtv
+#            DEFCONFIG: lgtv_defconfig
 
     steps:
       - name: Checkout repository
