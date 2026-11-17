@@ -29,7 +29,7 @@ jobs:
             runs-on: ubuntu-24.04-arm
             host_arch: aarch64
         config:
-          - name: WebOS config
+          - name: WebOS Qt6 config
             TOOLCHAIN_TARGET: webos
             DEFCONFIG: webos_tv_defconfig
           - name: LGTV config
@@ -44,7 +44,9 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y cpio rsync bc libssl-dev
-          mkdir -p "${RUNNER_TEMP}/buildroot-ccache" "${RUNNER_TEMP}/buildroot-dl"
+
+          mkdir -p "${RUNNER_TEMP}/buildroot-ccache" \
+                   "${RUNNER_TEMP}/buildroot-dl"
 
       - name: Cache downloads
         uses: actions/cache@v6
@@ -63,7 +65,26 @@ jobs:
             ${{ matrix.host_arch }}-${{ matrix.config.TOOLCHAIN_TARGET }}-ccache
 
       - name: Configure Buildroot
-        run: make ${{ matrix.config.DEFCONFIG }}
+        run: |
+          make "${{ matrix.config.DEFCONFIG }}"
+
+          if [ "${{ matrix.config.TOOLCHAIN_TARGET }}" = webos ]; then
+            echo "BR2_PACKAGE_QT5=n" >> .config
+            echo "BR2_PACKAGE_QT6=y" >> .config
+            echo "BR2_PACKAGE_QT6BASE_NETWORK=y" >> .config
+            echo "BR2_PACKAGE_QT6SERIALPORT=y" >> .config
+            echo "BR2_PACKAGE_ICU=n" >> .config
+
+            wget -q \
+              https://gist.githubusercontent.com/sundermann/eec535ef79adb87367a6030f713d5e27/raw/20b9add1b41e0c0c55dd11aaeff41160eebe9693/em_aarch64.patch \
+              -O package/qt6/qt6base/em_aarch64.patch
+
+            wget -q \
+              https://gist.githubusercontent.com/sundermann/eec535ef79adb87367a6030f713d5e27/raw/20b9add1b41e0c0c55dd11aaeff41160eebe9693/statvfs.patch \
+              -O package/qt6/qt6base/statvfs.patch
+          fi
+
+          make olddefconfig
 
       - name: Build SDK
         run: make sdk
@@ -72,13 +93,18 @@ jobs:
           BR2_DL_DIR: ${{ runner.temp }}/buildroot-dl
 
       - name: Rename SDK artifact
-        run: mv output/images/arm-${{ matrix.config.TOOLCHAIN_TARGET }}-linux-gnueabi_sdk-buildroot.tar.gz output/images/arm-${{ matrix.config.TOOLCHAIN_TARGET }}-linux-gnueabi_sdk-buildroot-${{ matrix.host_arch }}.tar.gz
+        run: |
+          mv \
+            output/images/arm-${{ matrix.config.TOOLCHAIN_TARGET }}-linux-gnueabi_sdk-buildroot.tar.gz \
+            output/images/arm-${{ matrix.config.TOOLCHAIN_TARGET }}-linux-gnueabi_sdk-buildroot-${{ matrix.host_arch }}-${{ github.sha }}.tar.gz
 
       - name: Upload SDK Artifact
         uses: actions/upload-artifact@v7
         with:
           name: arm-${{ matrix.config.TOOLCHAIN_TARGET }}-linux-gnueabi_sdk-buildroot-${{ matrix.host_arch }}
           path: output/images/*_sdk-buildroot*.tar.gz
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Release
         uses: softprops/action-gh-release@v3
